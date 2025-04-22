@@ -5,13 +5,7 @@ from PIL import Image
 from collections import Counter
 
 app = Flask(__name__)
-CORS(app, resources={
-    r"/predict": {
-        "origins": ["http://localhost:5173",],
-        "methods": ["POST", "OPTIONS"],  # Include OPTIONS for preflight
-        "allow_headers": ["Content-Type"]
-    }
-}) # Allow frontend to access backend
+
 
 model = YOLO("best.pt")
 
