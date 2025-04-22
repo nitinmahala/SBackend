@@ -1,38 +1,38 @@
-from http.server import BaseHTTPRequestHandler
-import json
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 from ultralytics import YOLO
 from PIL import Image
 from collections import Counter
-import base64
-import io
+
+app = Flask(__name__)
+CORS(app, resources={
+    r"/predict": {
+        "origins": ["http://localhost:5173",],
+        "methods": ["POST", "OPTIONS"],  # Include OPTIONS for preflight
+        "allow_headers": ["Content-Type"]
+    }
+}) # Allow frontend to access backend
 
 model = YOLO("best.pt")
 
-class handler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        content_length = int(self.headers['Content-Length'])
-        post_data = self.rfile.read(content_length)
-        data = json.loads(post_data)
-        
-        # Decode base64 image
-        img_data = base64.b64decode(data['image'].split(',')[1])
-        img = Image.open(io.BytesIO(img_data))
-        
-        results = model.predict(img)
-        boxes = results[0].boxes.data
-        class_names = [model.names[int(cls)] for cls in boxes[:, 5]]
+@app.route('/predict', methods=['POST'])
+def predict():
+    file = request.files['image']
+    img = Image.open(file.stream)
+    results = model.predict(img)
+    boxes = results[0].boxes.data
+    class_names = [model.names[int(cls)] for cls in boxes[:, 5]]
 
-        count = Counter(class_names)
+    count = Counter(class_names)
 
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.end_headers()
-        
-        response = {
-            "WBC": count.get("WBC", 0),
-            "RBC": count.get("RBC", 0),
-            "Platelets": count.get("platelets", 0)
-        }
-        
-        self.wfile.write(json.dumps(response).encode())
+    # Convert to regular dict and rename keys to match frontend
+    response = {
+        "WBC": count.get("WBC", 0),
+        "RBC": count.get("RBC", 0),
+        "Platelets": count.get("platelets", 0)
+    }
+
+    return jsonify(response)
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
